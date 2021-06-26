@@ -1,0 +1,136 @@
+#!/usr/bin/env bash
+
+docker info > /dev/null 2>&1
+
+# Ensure that Docker is running...
+if [ $? -ne 0 ]; then
+    echo "Docker is not running."
+    exit 1
+fi
+
+# Set environment variables for dev or CI
+export APP_PORT=${APP_PORT:-80}
+export DB_PORT=${DB_PORT:-3306}
+export DB_ROOT_PASS=${DB_ROOT_PASS:-secret}
+export DB_NAME=${DB_NAME:-homestead}
+export DB_USER=${DB_USER:-homestead}
+export DB_PASS=${DB_PASS:-secret}
+# mysql:8.0
+# mysql:5.7
+export DB_IMAGE=${DB_IMAGE:-bitnami/mariadb}
+
+# Decide which docker-compose file to use
+COMPOSE_FILE="dev"
+
+# Disable pseudo-TTY allocation for CI (Jenkins)
+TTY=""
+
+if [ ! -z "$BUILD_NUMBER" ]; then
+    COMPOSE_FILE="ci"
+    TTY="-T"
+fi
+
+COMPOSE="docker-compose -f docker-compose.$COMPOSE_FILE.yml"
+
+if [ $# -gt 0 ];then
+    if [ "$1" == "artisan" ]; then
+        shift 1
+        $COMPOSE run --rm $TTY \
+            -w /var/www/html \
+            app.test \
+            php artisan "$@"
+
+    # If "composer" is used, pass-thru to "composer"
+    # inside a new container
+    elif [ "$1" == "composer" ]; then
+        shift 1
+        $COMPOSE run --rm $TTY \
+            -w /var/www/html \
+            app.test \
+            composer "$@"
+
+    # If "init" is used, initialise app
+    # inside a new container
+    elif [ "$1" == "init" ]; then
+        shift 1
+        $COMPOSE run --rm $TTY \
+            -w /var/www/html \
+            app.test \
+            bash ./docker/app/init.sh
+
+    # If "mage" is used, pass-thru to "bin/magento"
+    # inside a new container
+    elif [ "$1" == "mage" ]; then
+        shift 1
+        $COMPOSE run --rm $TTY \
+            -w /var/www/html \
+            app.test \
+            php bin/magento "$@"
+
+    # If "test" is used, run unit tests,
+    # pass-thru any extra arguments to php-unit
+    elif [ "$1" == "test" ]; then
+        shift 1
+        $COMPOSE run --rm $TTY \
+            -w /var/www/html \
+            app.test \
+            ./vendor/bin/phpunit "$@"
+
+    elif [ "$1" == "t" ]; then
+        shift 1
+        $COMPOSE exec \
+            app.test \
+            sh -c "cd /var/www/html && ./vendor/bin/phpunit $@"
+
+    # If "npm" is used, run npm
+    # from our node container
+    elif [ "$1" == "npm" ]; then
+        shift 1
+        $COMPOSE run --rm $TTY \
+            -w /var/www/html \
+            node \
+            npm "$@"
+
+    # If "yarn" is used, run yarn
+    # from our node container
+    elif [ "$1" == "yarn" ]; then
+        shift 1
+        $COMPOSE run --rm $TTY \
+            -w /var/www/html \
+            node \
+            yarn "$@"
+
+    # If "gulp" is used, run gulp
+    # from our node container
+    elif [ "$1" == "gulp" ]; then
+        shift 1
+        $COMPOSE run --rm $TTY \
+            -w /var/www/html \
+            node \
+            ./node_modules/.bin/gulp "$@"
+    else
+        $COMPOSE "$@"
+    fi
+else
+    $COMPOSE ps
+fi
+
+# echo ""
+#
+# CYAN='\033[0;36m'
+# LIGHT_CYAN='\033[1;36m'
+# WHITE='\033[1;37m'
+# NC='\033[0m'
+#
+# echo ""
+#
+# if sudo -n true 2>/dev/null; then
+#     sudo chown -R $USER: .
+#     echo -e "${WHITE}Get started with:${NC} ./develop up or ./develop up -d"
+# else
+#     echo -e "${WHITE}Please provide your password so we can make some final adjustments to your app.testlication's permissions.${NC}"
+#     echo ""
+#     sudo chown -R $USER: .
+#     echo ""
+#     echo -e "${WHITE}Thank you! We hope you build something incredible. Dive in with:${NC} ./develop up or ./develop up -d"
+# fi

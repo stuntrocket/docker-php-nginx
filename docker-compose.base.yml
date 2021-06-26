@@ -1,0 +1,44 @@
+version: "3.9"
+services:
+  app.test:
+    build:
+      context: ./docker/app
+      dockerfile: Dockerfile
+    image: stuntrocket/phpapp
+    volumes:
+      - .:/var/www/html
+    networks:
+      - docker-network
+    restart: unless-stopped
+  node:
+    build:
+      context: ./docker/node
+      dockerfile: Dockerfile
+    image: node
+    volumes:
+      - .:/var/www/html
+    networks:
+      - docker-network
+  mysql:
+    image: "${DB_IMAGE}"
+    volumes:
+      - db_data:/var/lib/mysql
+    networks:
+      - docker-network
+    restart: always
+  redis:
+    image: redis:alpine
+    volumes:
+      - redisdata:/data
+    networks:
+      - docker-network
+    restart: unless-stopped
+  mailhog:
+    image: mailhog/mailhog:latest
+    networks:
+        - docker-network
+    restart: unless-stopped
+volumes:
+  db_data: {}
+  redisdata:
+    driver: "local"
